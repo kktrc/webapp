@@ -1,13 +1,9 @@
 package me.pzzls;
 
-import org.eclipse.jetty.server.Connector;
 import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.webapp.WebAppContext;
-
-import java.io.File;
-import java.net.URL;
-import java.security.ProtectionDomain;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Copyright (C) 2017 mosl, Inc.
@@ -17,73 +13,43 @@ import java.security.ProtectionDomain;
  * @author <a href="mailto:moshenglei@icloud.com">mosl</a>
  * @since 2017/2/21 下午6:47
  */
-public class Webapp {
+public class WebApp {
 
-    public static final int DEFAULT_PORT = 8080;
-    public static final String DEFAULT_CONTEXT_PATH = "/webapp";
-    private static final String DEFAULT_APP_CONTEXT_PATH = "/web";
+    private static final Logger LOGGER = LoggerFactory.getLogger(WebApp.class);
+
+    private static final int DEFAULT_SERVER_PORT = 8089;
 
     public static void main(String[] args) {
-        runJettyServer(DEFAULT_PORT, DEFAULT_CONTEXT_PATH);
-    }
+        int port = getServerPort(args);
 
-    public static void runJettyServer(int port, String contextPath) {
-        Server server = createJettyServer(port, contextPath);
+        Server server = new Server(port);
+
+        WebAppContext context = new WebAppContext();
+        context.setDescriptor("web/WEB-INF/web.xml");
+        context.setResourceBase("web");
+        context.setContextPath("/");
+        context.setParentLoaderPriority(true);
+
+        server.setHandler(context);
+
         try {
             server.start();
             server.join();
-        } catch (Exception e) {
-            e.printStackTrace();
-        } finally {
+        } catch (Throwable t) {
+            LOGGER.error("start server error", t);
+            System.exit(-1);
+        }
+    }
+
+    private static int getServerPort(String[] args) {
+        if (args.length > 0) {
             try {
-                server.stop();
-            } catch (Exception e) {
-                e.printStackTrace();
+                return Integer.valueOf(args[0]);
+            } catch (NumberFormatException e) {
+                LOGGER.error("invalid server port argument: {}", args[0]);
             }
         }
 
-    }
-
-    public static Server createJettyServer(int port, String contextPath) {
-
-        Server server = new Server(port);
-        server.setStopAtShutdown(true);
-
-        ProtectionDomain protectionDomain = Webapp.class.getProtectionDomain();
-        URL location = protectionDomain.getCodeSource().getLocation();
-        String warFile = location.toExternalForm();
-
-        WebAppContext context = new WebAppContext(warFile, contextPath);
-        context.setServer(server);
-
-        // 设置work dir,war包将解压到该目录，jsp编译后的文件也将放入其中。
-        String currentDir = new File(location.getPath()).getParent();
-        File workDir = new File(currentDir, "work");
-        context.setTempDirectory(workDir);
-
-        server.setHandler(context);
-        return server;
-
-    }
-
-    public static Server createDevServer(int port, String contextPath) {
-
-        Server server = new Server();
-        server.setStopAtShutdown(true);
-
-        ServerConnector connector = new ServerConnector(server);
-        // 设置服务端口
-        connector.setPort(port);
-        connector.setReuseAddress(false);
-        server.setConnectors(new Connector[]{connector});
-
-        // 设置web资源根路径以及访问web的根路径
-        WebAppContext webAppCtx = new WebAppContext(DEFAULT_APP_CONTEXT_PATH, contextPath);
-        webAppCtx.setDescriptor(DEFAULT_APP_CONTEXT_PATH + "/WEB-INF/web.xml");
-        webAppCtx.setResourceBase(DEFAULT_APP_CONTEXT_PATH);
-        webAppCtx.setClassLoader(Thread.currentThread().getContextClassLoader());
-        server.setHandler(webAppCtx);
-
-        return server;
+        return DEFAULT_SERVER_PORT;
     }
 }
